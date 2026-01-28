@@ -1,0 +1,37 @@
+name: Build uPic for Mac
+
+on:
+  workflow_dispatch: # 允许你手动点击按钮触发编译
+
+jobs:
+  build:
+    name: Build uPic Application
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build App
+        run: |
+          # 针对 Apple Silicon (M4芯片) 编译 Release 版本
+          # 加入 CODE_SIGNING_ALLOWED=NO 是为了防止因为没有开发者证书而报错
+          xcodebuild -project uPic.xcodeproj \
+                     -scheme uPic \
+                     -configuration Release \
+                     -derivedDataPath Build/ \
+                     ARCHS=arm64 \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO
+
+      - name: Prepare Zip
+        run: |
+          # 进入编译出的目录并打包
+          cd Build/Build/Products/Release
+          zip -r uPic-M4-Edition.zip uPic.app
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uPic-Binary
+          path: Build/Build/Products/Release/uPic-M4-Edition.zip
