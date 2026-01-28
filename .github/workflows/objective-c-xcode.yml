@@ -1,55 +1,44 @@
-name: Build uPic for Mac (Final Patch)
+name: Build uPic for Mac (Manual Override)
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build uPic Application
     runs-on: macos-latest
-    
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Detect and Build App
+      - name: Force Build App
         run: |
-          # 1. 自动获取 Scheme
-          SCHEME_NAME=$(xcodebuild -list -project uPic.xcodeproj | grep -A 1 "Schemes:" | tail -n 1 | xargs)
-          echo "检测到的正确 Scheme 是: $SCHEME_NAME"
-          
-          # 2. 强制指定编译目标为 macOS (针对 M4 优化)
-          # 加入 -destination 使其明确为 macOS 编译，避免只生成依赖包
+          # 强制清理并编译主 Scheme
+          # 加入 -derivedDataPath 是为了把所有东西塞进我们能找到的地方
+          # 加入 ARCHS=arm64 适配你的 M4 芯片
           xcodebuild -project uPic.xcodeproj \
-                     -scheme "$SCHEME_NAME" \
+                     -scheme uPic \
                      -configuration Release \
-                     -derivedDataPath Build/ \
                      -destination 'platform=macOS' \
+                     -derivedDataPath ./Output \
                      ARCHS=arm64 \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
                      clean build
 
-      - name: Prepare Zip Package (Deep Search)
+      - name: Find and Package
         run: |
-          # 使用深度搜索，防止文件在子目录中
-          echo "正在搜索 .app 文件..."
-          APP_PATH=$(find Build -name "*.app" -type d | head -n 1)
-          
+          # 放弃固定路径，直接全盘扫描生成的 .app
+          APP_PATH=$(find ./Output -name "*.app" -type d | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            echo "错误：未能在 Build 目录下找到任何 .app 文件！"
-            find Build -maxdepth 4
+            echo "依然没找到 .app 文件，打印 Output 结构排查："
+            ls -R ./Output
             exit 1
           fi
-          
-          echo "发现应用路径: $APP_PATH"
-          # 压缩
-          zip -r uPic-M4-Edition.zip "$APP_PATH"
-          # 将 zip 移动到当前目录供上传
-          mv uPic-M4-Edition.zip ./
+          echo "成功找到应用: $APP_PATH"
+          zip -r uPic_M4_Ready.zip "$APP_PATH"
 
-      - name: Upload Artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: uPic-M4-Build
-          path: uPic-M4-Edition.zip
+          name: uPic-M4-Edition
+          path: uPic_M4_Ready.zip
