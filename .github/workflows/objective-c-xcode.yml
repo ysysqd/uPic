@@ -1,4 +1,4 @@
-name: Build uPic for Mac (Manual Override)
+name: Build uPic for Mac (M4 Max Speed)
 
 on:
   workflow_dispatch:
@@ -10,11 +10,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve Dependencies
+        run: |
+          # 提前解析并下载所有 Swift 依赖包，防止编译时卡死
+          xcodebuild -resolvePackageDependencies -project uPic.xcodeproj -scheme uPic
+
       - name: Force Build App
         run: |
-          # 强制清理并编译主 Scheme
-          # 加入 -derivedDataPath 是为了把所有东西塞进我们能找到的地方
-          # 加入 ARCHS=arm64 适配你的 M4 芯片
+          # 使用 -clonedSourcePackagesDirPath 提高稳定性
           xcodebuild -project uPic.xcodeproj \
                      -scheme uPic \
                      -configuration Release \
@@ -27,10 +30,10 @@ jobs:
 
       - name: Find and Package
         run: |
-          # 放弃固定路径，直接全盘扫描生成的 .app
+          # 搜索生成的 .app
           APP_PATH=$(find ./Output -name "*.app" -type d | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            echo "依然没找到 .app 文件，打印 Output 结构排查："
+            echo "错误：未找到编译生成的 .app 文件！"
             ls -R ./Output
             exit 1
           fi
