@@ -1,7 +1,7 @@
-name: Build uPic for Mac (M4 Optimized)
+name: Build uPic for Mac (M4 Fully Automated)
 
 on:
-  workflow_dispatch: # 允许手动点击按钮触发
+  workflow_dispatch: # 允许在 Actions 页面手动点击按钮触发
 
 jobs:
   build:
@@ -14,13 +14,13 @@ jobs:
 
       - name: Detect and Build App
         run: |
-          # 1. 自动获取项目中的 Scheme 名称
+          # 1. 自动获取项目中的第一个有效 Scheme 名称
           SCHEME_NAME=$(xcodebuild -list -project uPic.xcodeproj | grep -A 1 "Schemes:" | tail -n 1 | xargs)
           echo "检测到的正确 Scheme 是: $SCHEME_NAME"
           
           # 2. 开始编译
-          # ARCHS=arm64 确保在 M4 芯片上原生运行
-          # CODE_SIGNING_ALLOWED=NO 绕过开发者证书签名限制
+          # ARCHS=arm64 专门为您 M4 芯片 16G 内存的 MacBook Air 优化，原生运行不卡顿
+          # CODE_SIGNING_ALLOWED=NO 绕过 Apple 开发者证书的签名限制
           xcodebuild -project uPic.xcodeproj \
                      -scheme "$SCHEME_NAME" \
                      -configuration Release \
@@ -30,15 +30,26 @@ jobs:
                      CODE_SIGNING_REQUIRED=NO \
                      clean build
 
-      - name: Prepare Zip Package
+      - name: Prepare Zip Package (Smart Matching)
         run: |
-          # 进入编译输出目录
+          # 进入输出目录
           cd Build/Build/Products/Release
-          # 将 .app 打包成 zip
-          zip -r uPic-M4-Custom.zip uPic.app
+          
+          # 自动寻找存在的 .app 文件（解决 zip warning: name not matched 问题）
+          # 使用通配符匹配，即使名字叫 uPic-macOS.app 也能识别
+          APP_NAME=$(find . -maxdepth 1 -name "*.app" -print -quit)
+          
+          if [ -z "$APP_NAME" ]; then
+            echo "错误：未能在目录中找到生成的 .app 文件！"
+            ls -R # 打印所有文件目录，方便排查
+            exit 1
+          fi
+          
+          echo "正在打包: $APP_NAME"
+          zip -r uPic-M4-Custom.zip "$APP_NAME"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: uPic-M4-Installation-Package
+          name: uPic-M4-Ready-To-Use
           path: Build/Build/Products/Release/uPic-M4-Custom.zip
